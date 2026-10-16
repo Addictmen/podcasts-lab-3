@@ -1,0 +1,80 @@
+### Создать пользователя (201)
+POST http://localhost:8080/api/users
+Content-Type: application/json
+
+{ "name": "Краснов Никита", "email": "ol9878.com@gmail.com" }
+
+### Создать подкаст (201)
+POST http://localhost:8080/api/podcasts
+Content-Type: application/json
+
+{ "title": "Разговоры о Java", "authorId": 1, "status": "ACTIVE" }
+
+### Создать эпизод (201), длительность в секундах
+POST http://localhost:8080/api/episodes
+Content-Type: application/json
+
+{ "podcastId": 1, "title": "Выпуск 1. Spring Boot", "durationSeconds": 1800 }
+
+### Слот без аудиофайла (400) - сначала нужен основной файл
+POST http://localhost:8080/api/publication-slots
+Content-Type: application/json
+
+{ "podcastId": 1, "episodeId": 1, "dateTime": "2030-01-15T12:00:00" }
+
+### Добавить аудиофайл (201), первый файл сразу становится основным
+POST http://localhost:8080/api/audio-files
+Content-Type: application/json
+
+{ "episodeId": 1, "path": "/audio/ep1.mp3", "format": "MP3", "sizeBytes": 5000000 }
+
+### Второй файл, делаем основным (201) - у первого main станет false
+POST http://localhost:8080/api/audio-files
+Content-Type: application/json
+
+{ "episodeId": 1, "path": "/audio/ep1.wav", "format": "WAV", "sizeBytes": 9000000, "main": true }
+
+### Все аудиофайлы (200)
+GET http://localhost:8080/api/audio-files
+
+### Слот в прошлом (400) - время сравнивается с временем сервера
+POST http://localhost:8080/api/publication-slots
+Content-Type: application/json
+
+{ "podcastId": 1, "episodeId": 1, "dateTime": "2020-01-01T10:00:00" }
+
+### Создать слот (201) - эпизод станет SCHEDULED
+POST http://localhost:8080/api/publication-slots
+Content-Type: application/json
+
+{ "podcastId": 1, "episodeId": 1, "dateTime": "2030-01-15T12:00:00" }
+
+### Эпизод (200), publicationState = SCHEDULED
+GET http://localhost:8080/api/episodes/1
+
+### Обновить подкаст (200)
+PATCH http://localhost:8080/api/podcasts/1
+Content-Type: application/json
+
+{ "title": "Разговоры о Java и Spring" }
+
+### Слот выполнен (200) - эпизод станет PUBLISHED
+PATCH http://localhost:8080/api/publication-slots/1
+Content-Type: application/json
+
+{ "status": "DONE" }
+
+### Эпизод (200), publicationState = PUBLISHED
+GET http://localhost:8080/api/episodes/1
+
+### Удалить не основной аудиофайл (204)
+DELETE http://localhost:8080/api/audio-files/1
+
+### Удалить пользователя (204) - удалятся его подкасты, эпизоды, файлы и слоты
+DELETE http://localhost:8080/api/users/1
+
+### Проверка: эпизодов не осталось (200, [])
+GET http://localhost:8080/api/episodes
+
+### Несуществующий (404)
+GET http://localhost:8080/api/podcasts/1
