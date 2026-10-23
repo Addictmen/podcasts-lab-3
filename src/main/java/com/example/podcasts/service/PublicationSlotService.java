@@ -1,3 +1,4 @@
+
 package com.example.podcasts.service;
 
 import com.example.podcasts.model.AudioFile;
@@ -11,6 +12,7 @@ import com.example.podcasts.repository.PublicationSlotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -21,8 +23,10 @@ public class PublicationSlotService {
 
     @Autowired
     private PublicationSlotRepository slotRepository;
+
     @Autowired
     private EpisodeRepository episodeRepository;
+
     @Autowired
     private AudioFileRepository audioFileRepository;
 
@@ -31,68 +35,139 @@ public class PublicationSlotService {
     }
 
     public PublicationSlot getById(Long id) {
-        PublicationSlot slot = slotRepository.findById(id);
-        if (slot == null)
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Слот не найден");
-        return slot;
+        return slotRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Слот не найден"
+                ));
     }
 
+    @Transactional
     public PublicationSlot create(PublicationSlot data) {
-        if (data.getPodcastId() == null || data.getEpisodeId() == null || data.getDateTime() == null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Нужно указать podcastId, episodeId и dateTime");
-        Episode episode = episodeRepository.findById(data.getEpisodeId());
-        if (episode == null)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Эпизод не найден");
-        if (!episode.getPodcastId().equals(data.getPodcastId()))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Эпизод не из этого подкаста");
-        // сравниваем с текущим временем сервера
-        if (data.getDateTime().isBefore(LocalDateTime.now()))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Дата публикации уже прошла");
-        if (episode.getPublicationState() != PublicationState.DRAFT)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Эпизод уже запланирован или опубликован");
-        if (!hasMainFile(episode.getId()))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "У эпизода нет основного аудиофайла");
+
+        if (data.getPodcastId() == null ||
+                data.getEpisodeId() == null ||
+                data.getDateTime() == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Нужно указать podcastId, episodeId и dateTime"
+            );
+        }
+
+        Episode episode = episodeRepository.findById(data.getEpisodeId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Эпизод не найден"
+                ));
+
+        if (!episode.getPodcastId().equals(data.getPodcastId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Эпизод не из этого подкаста"
+            );
+        }
+
+        if (data.getDateTime().isBefore(LocalDateTime.now())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Дата публикации уже прошла"
+            );
+        }
+
+        if (episode.getPublicationState() != PublicationState.DRAFT) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Эпизод уже запланирован или опубликован"
+            );
+        }
+
+        if (!hasMainFile(episode.getId())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "У эпизода нет основного аудиофайла"
+            );
+        }
 
         PublicationSlot slot = new PublicationSlot();
         slot.setPodcastId(data.getPodcastId());
         slot.setEpisodeId(data.getEpisodeId());
         slot.setDateTime(data.getDateTime());
         slot.setStatus(SlotStatus.PLANNED);
+
         episode.setPublicationState(PublicationState.SCHEDULED);
+        episodeRepository.save(episode);
+
         return slotRepository.save(slot);
     }
 
+    @Transactional
     public PublicationSlot update(Long id, PublicationSlot data) {
         PublicationSlot slot = getById(id);
+
         if (data.getDateTime() != null) {
-            if (data.getDateTime().isBefore(LocalDateTime.now()))
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Дата публикации уже прошла");
+            if (data.getDateTime().isBefore(LocalDateTime.now())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Дата публикации уже прошла"
+                );
+            }
+
             slot.setDateTime(data.getDateTime());
         }
+
         if (data.getStatus() != null) {
             slot.setStatus(data.getStatus());
-            // меняем состояние эпизода вместе со слотом
-            Episode episode = episodeRepository.findById(slot.getEpisodeId());
-            if (data.getStatus() == SlotStatus.DONE) episode.setPublicationState(PublicationState.PUBLISHED);
-            if (data.getStatus() == SlotStatus.CANCELLED) episode.setPublicationState(PublicationState.DRAFT);
+
+            Episode episode = episodeRepository.findById(slot.getEpisodeId())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Эпизод не найден"
+                    ));
+
+            if (data.getStatus() == SlotStatus.DONE) {
+                episode.setPublicationState(PublicationState.PUBLISHED);
+            }
+
+            if (data.getStatus() == SlotStatus.CANCELLED) {
+                episode.setPublicationState(PublicationState.DRAFT);
+            }
+
+            if (data.getStatus() == SlotStatus.PLANNED) {
+                episode.setPublicationState(PublicationState.SCHEDULED);
+            }
+
+            episodeRepository.save(episode);
         }
-        return slot;
+
+        return slotRepository.save(slot);
     }
 
+    @Transactional
     public void delete(Long id) {
         PublicationSlot slot = getById(id);
-        // если слот был запланирован, эпизод снова становится черновиком
+
         if (slot.getStatus() == SlotStatus.PLANNED) {
-            Episode episode = episodeRepository.findById(slot.getEpisodeId());
+            Episode episode = episodeRepository.findById(slot.getEpisodeId())
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Эпизод не найден"
+                    ));
+
             episode.setPublicationState(PublicationState.DRAFT);
+            episodeRepository.save(episode);
         }
+
         slotRepository.deleteById(id);
     }
 
     private boolean hasMainFile(Long episodeId) {
         for (AudioFile file : audioFileRepository.findByEpisodeId(episodeId)) {
-            if (file.getMain()) return true;
+            if (Boolean.TRUE.equals(file.getMain())) {
+                return true;
+            }
         }
+
         return false;
     }
 }

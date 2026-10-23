@@ -1,12 +1,39 @@
+
 package com.example.podcasts.model;
 
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "audio_files")
 public class AudioFile {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "episode_id", nullable = false)
     private Long episodeId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "episode_id",
+            referencedColumnName = "id",
+            insertable = false,
+            updatable = false
+    )
+    private Episode episode;
+
+    @Column(nullable = false)
     private String path;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private AudioFormat format;
+
+    @Column(nullable = false)
     private Long sizeBytes;
+
+    @Column(name = "is_main", nullable = false)
     private Boolean main;
 
     public Long getId() {

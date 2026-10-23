@@ -2,7 +2,7 @@
 POST http://localhost:8080/api/users
 Content-Type: application/json
 
-{ "name": "Краснов Никита", "email": "ol9878.com@gmail.com" }
+{ "name": "Краснов Никита", "email": "ol9999.com@gmail.com" }
 
 ### Создать подкаст (201)
 POST http://localhost:8080/api/podcasts

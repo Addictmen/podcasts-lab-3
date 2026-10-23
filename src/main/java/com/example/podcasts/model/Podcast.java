@@ -1,10 +1,34 @@
+
 package com.example.podcasts.model;
 
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "podcasts")
 public class Podcast {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false)
     private String title;
+
+    @Column(name = "author_id", nullable = false)
     private Long authorId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "author_id",
+            referencedColumnName = "id",
+            insertable = false,
+            updatable = false,
+            nullable = false
+    )
+    private User author;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private PodcastStatus status;
 
     public Long getId() {
